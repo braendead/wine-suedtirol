@@ -20,6 +20,9 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
 import { LanguagePipe } from '../../shared/pipes/language.pipe';
 import * as L from 'leaflet';
 
+// Fix Leaflet default icon paths completely
+L.Icon.Default.imagePath = 'assets/';
+
 @Component({
   selector: 'app-kellerei-detail',
   standalone: true,
@@ -95,7 +98,7 @@ import * as L from 'leaflet';
 
             <div class="reviews-section">
               <h3>Bewertungen</h3>
-              
+
               @if (reviews().length === 0) {
                 <p>Noch keine Bewertungen vorhanden.</p>
               } @else {
@@ -127,14 +130,14 @@ import * as L from 'leaflet';
                   <form [formGroup]="reviewForm" (ngSubmit)="submitReview()">
                     <div class="star-rating">
                       @for (star of [1,2,3,4,5]; track star) {
-                        <mat-icon 
+                        <mat-icon
                           (click)="setRating(star)"
                           [class.active]="star <= selectedRating()">
                           star
                         </mat-icon>
                       }
                     </div>
-                    
+
                     <mat-form-field appearance="outline" class="full-width">
                       <mat-label>Kommentar</mat-label>
                       <textarea matInput formControlName="comment" rows="3"></textarea>
@@ -318,7 +321,7 @@ export default class KellereiDetailComponent implements OnInit {
     if (this.reviewForm.valid && this.selectedRating() > 0) {
       const user = this.authService.currentUser();
       const k = this.kellerei();
-      
+
       if (user && k) {
         this.reviewService.addReview({
           kellereiId: k.Id,

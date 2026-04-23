@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, ViewChild } from '@angular/core';
+import { Component, OnInit, inject, signal, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ApiService } from '../../core/services/api.service';
 import { WineAward } from '../../core/models/wine-award.model';
 import { SharedBackButtonComponent } from '../../shared/components/back-button/back-button.component';
+import { LanguagePipe } from '../../shared/pipes/language.pipe';
 
 @Component({
   selector: 'app-wine-awards',
@@ -21,7 +22,8 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
-    SharedBackButtonComponent
+    SharedBackButtonComponent,
+    LanguagePipe
   ],
   template: `
     <div class="awards-container">
@@ -47,31 +49,21 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
           <!-- Year Column -->
           <ng-container matColumnDef="Year">
             <th mat-header-cell *matHeaderCellDef mat-sort-header> Jahr </th>
-            <td mat-cell *matCellDef="let row"> {{row.Year}} </td>
+            <td mat-cell *matCellDef="let row"> {{row.Awardyear || row.Vintage || '-'}} </td>
           </ng-container>
 
           <!-- Awardname Column -->
           <ng-container matColumnDef="Awardname">
             <th mat-header-cell *matHeaderCellDef mat-sort-header> Award </th>
-            <td mat-cell *matCellDef="let row"> {{row.Awardname}} </td>
-          </ng-container>
-
-          <!-- Winnername Column -->
-          <ng-container matColumnDef="Winnername">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Gewinner </th>
-            <td mat-cell *matCellDef="let row"> {{row.Winnername}} </td>
+            <td mat-cell *matCellDef="let row">
+              {{ row.Awards && row.Awards.length > 0 ? row.Awards.join(', ') : 'Kein Award Name' }}
+            </td>
           </ng-container>
 
           <!-- Wine Column -->
           <ng-container matColumnDef="Wine">
             <th mat-header-cell *matHeaderCellDef mat-sort-header> Wein </th>
-            <td mat-cell *matCellDef="let row"> {{row.Wine}} </td>
-          </ng-container>
-
-          <!-- Category Column -->
-          <ng-container matColumnDef="Category">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Kategorie </th>
-            <td mat-cell *matCellDef="let row"> {{row.Category}} </td>
+            <td mat-cell *matCellDef="let row"> {{row.Detail | language}} </td>
           </ng-container>
 
           <!-- Image Column -->
@@ -80,6 +72,8 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
             <td mat-cell *matCellDef="let row">
               @if (row.ImageGallery?.length) {
                 <img [src]="row.ImageGallery[0].ImageUrl" alt="Wine Image" class="thumbnail">
+              } @else {
+                <span class="no-image">-</span>
               }
             </td>
           </ng-container>
@@ -89,11 +83,19 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
 
           <!-- Row shown when there is no matching data. -->
           <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="6">Keine Daten gefunden für "{{input.value}}"</td>
+            <td class="mat-cell" colspan="4">
+              @if (isLoading()) {
+                Lade Daten...
+              } @else if (input.value) {
+                Keine Daten gefunden für "{{input.value}}"
+              } @else {
+                Keine Wine Awards verfügbar.
+              }
+            </td>
           </tr>
         </table>
 
-        <mat-paginator [pageSizeOptions]="[10, 25, 50]" aria-label="Select page of awards"></mat-paginator>
+        <mat-paginator [pageSizeOptions]="[10, 25, 50]" [pageSize]="10" aria-label="Select page of awards"></mat-paginator>
       </div>
     </div>
   `,
@@ -126,7 +128,7 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
       bottom: 0;
       right: 0;
       background: rgba(0, 0, 0, 0.15);
-      z-index: 1;
+      z-index: 10;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -137,12 +139,15 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
       object-fit: cover;
       border-radius: 4px;
     }
+    .no-image {
+      color: #999;
+    }
     table {
       width: 100%;
     }
     @media (max-width: 768px) {
       /* Hide some columns on mobile */
-      .mat-column-Category, .mat-column-Image {
+      .mat-column-Image {
         display: none;
       }
     }
@@ -150,8 +155,9 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
 })
 export default class WineAwardsComponent implements OnInit {
   private apiService = inject(ApiService);
+  private cdr = inject(ChangeDetectorRef);
 
-  displayedColumns: string[] = ['Year', 'Awardname', 'Winnername', 'Wine', 'Category', 'Image'];
+  displayedColumns: string[] = ['Year', 'Awardname', 'Wine', 'Image'];
   dataSource = new MatTableDataSource<WineAward>();
   isLoading = signal<boolean>(true);
 
@@ -159,13 +165,34 @@ export default class WineAwardsComponent implements OnInit {
   @ViewChild(MatSort) sort!: MatSort;
 
   ngOnInit() {
-    // We load a large chunk for client-side filtering/sorting demo
     this.apiService.getWineAwards(1, 200).subscribe({
       next: (res) => {
-        this.dataSource.data = res.Items;
-        this.dataSource.paginator = this.paginator;
-        this.dataSource.sort = this.sort;
-        this.isLoading.set(false);
+        console.log('Received wine awards:', res);
+
+        // Ensure we handle missing records gracefully
+        const safeItems = res.Items ? res.Items.filter(item => item !== null && item !== undefined) : [];
+        this.dataSource.data = safeItems;
+
+        // Custom filter predicate to search in nested objects
+        this.dataSource.filterPredicate = (data: WineAward, filter: string) => {
+          if (!data) return false;
+          const dataStr = (
+            (data.Awardyear?.toString() || '') +
+            (data.Vintage?.toString() || '') +
+            (data.Awards?.join(' ') || '') +
+            (data.Detail?.de?.Title || '') +
+            (data.Detail?.it?.Title || '')
+          ).toLowerCase();
+          return dataStr.indexOf(filter) != -1;
+        };
+
+        // Timeout to ensure view children are initialized when setting them
+        setTimeout(() => {
+          this.dataSource.paginator = this.paginator;
+          this.dataSource.sort = this.sort;
+          this.isLoading.set(false);
+          this.cdr.detectChanges(); // Force change detection
+        }, 0);
       },
       error: (err) => {
         console.error('Error loading wine awards', err);

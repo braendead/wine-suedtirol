@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, effect } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -10,6 +10,9 @@ import { GeolocationService } from '../../core/services/geolocation.service';
 import { Kellerei } from '../../core/models/kellerei.model';
 import { LanguagePipe } from '../../shared/pipes/language.pipe';
 import * as L from 'leaflet';
+
+// Fix Leaflet default icon paths completely
+L.Icon.Default.imagePath = 'assets/';
 
 @Component({
   selector: 'app-home',
@@ -41,7 +44,7 @@ import * as L from 'leaflet';
               <p class="no-results">Keine Kellereien gefunden.</p>
             }
           </mat-nav-list>
-          
+
           @if (!searchTerm()) {
             <mat-paginator
               [length]="totalResults()"
@@ -110,47 +113,53 @@ export default class HomeComponent implements OnInit {
   private route = inject(ActivatedRoute);
 
   kellereien = signal<Kellerei[]>([]);
-  filteredKellereien = signal<Kellerei[]>([]);
   isLoading = signal<boolean>(false);
-  
+
   totalResults = signal<number>(0);
   currentPage = signal<number>(1);
   pageSize = signal<number>(20);
   searchTerm = signal<string>('');
+
+  filteredKellereien = computed(() => {
+    const term = this.searchTerm().toLowerCase();
+    const all = this.kellereien();
+    if (!term) return all;
+    return all.filter(k => {
+      const titleDe = k.Detail?.de?.Title?.toLowerCase() || '';
+      const titleIt = k.Detail?.it?.Title?.toLowerCase() || '';
+      return titleDe.includes(term) || titleIt.includes(term);
+    });
+  });
 
   private map: L.Map | undefined;
   private markers: L.Marker[] = [];
 
   constructor() {
     effect(() => {
-      const term = this.searchTerm().toLowerCase();
-      if (term) {
-        // In a real app, we might need to search across all pages via API
-        // For now, we filter the current page
-        this.filteredKellereien.set(
-          this.kellereien().filter(k => {
-            const titleDe = k.Detail?.de?.Title?.toLowerCase() || '';
-            const titleIt = k.Detail?.it?.Title?.toLowerCase() || '';
-            return titleDe.includes(term) || titleIt.includes(term);
-          })
-        );
-      } else {
-        this.filteredKellereien.set(this.kellereien());
-      }
-      this.updateMapMarkers();
+      // Track filteredKellereien and update map markers
+      const k = this.filteredKellereien();
+
+      // Don't update markers if the map isn't ready
+      if (!this.map) return;
+
+      // Use a non-tracking context to cleanly interact with outside APIs like leaflet
+      setTimeout(() => this.updateMapMarkers(k), 0);
     });
   }
 
   ngOnInit() {
     this.initMap();
-    
-    this.route.queryParams.subscribe(params => {
-      if (params['search']) {
-        this.searchTerm.set(params['search']);
-      } else {
-        this.searchTerm.set('');
-      }
-    });
+
+    // Convert to promise or just use standard subscription without triggering synchronous signal writes inside constructor/effect
+    setTimeout(() => {
+      this.route.queryParams.subscribe(params => {
+        if (params['search']) {
+          this.searchTerm.set(params['search']);
+        } else {
+          this.searchTerm.set('');
+        }
+      });
+    }, 0);
 
     this.loadKellereien();
   }
@@ -159,8 +168,8 @@ export default class HomeComponent implements OnInit {
     this.isLoading.set(true);
     this.apiService.getKellereien(this.currentPage(), this.pageSize()).subscribe({
       next: (res) => {
-        this.kellereien.set(res.Items);
-        this.totalResults.set(res.TotalResults);
+        this.kellereien.set(res.Items || []);
+        this.totalResults.set(res.TotalResults || 0);
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -191,7 +200,15 @@ export default class HomeComponent implements OnInit {
       next: (pos) => {
         if (this.map) {
           this.map.setView([pos.coords.latitude, pos.coords.longitude], 12);
-          L.marker([pos.coords.latitude, pos.coords.longitude])
+
+          // Use divIcon instead of default marker icon to avoid path issues
+          const userIcon = L.divIcon({
+            html: '<div style="background-color: #2196F3; border-radius: 50%; width: 20px; height: 24px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+            iconSize: [20, 24],
+            iconAnchor: [10, 12]
+          });
+
+          L.marker([pos.coords.latitude, pos.coords.longitude], { icon: userIcon })
             .addTo(this.map)
             .bindPopup('Ihr Standort');
         }
@@ -200,9 +217,12 @@ export default class HomeComponent implements OnInit {
         // Fallback already set
       }
     });
+
+    // Initial render of markers since map is ready now
+    this.updateMapMarkers(this.filteredKellereien());
   }
 
-  private updateMapMarkers() {
+  private updateMapMarkers(kellereien: Kellerei[]) {
     if (!this.map) return;
 
     // Clear existing markers
@@ -216,19 +236,24 @@ export default class HomeComponent implements OnInit {
       iconAnchor: [12, 12]
     });
 
-    this.filteredKellereien().forEach(k => {
+    kellereien.forEach(k => {
       if (k.GpsInfo && k.GpsInfo.length > 0) {
         const lat = k.GpsInfo[0].Latitude;
         const lng = k.GpsInfo[0].Longitude;
-        
-        const title = k.Detail?.de?.Title || k.Detail?.it?.Title || 'Unbekannt';
-        const city = k.ContactInfos?.de?.City || k.ContactInfos?.it?.City || '';
+
+        const titleDe = k.Detail?.de?.Title;
+        const titleIt = k.Detail?.it?.Title;
+        const title = titleDe || titleIt || 'Unbekannt';
+
+        const cityDe = k.ContactInfos?.de?.City;
+        const cityIt = k.ContactInfos?.it?.City;
+        const city = cityDe || cityIt || '';
 
         const marker = L.marker([lat, lng], { icon: wineIcon })
           .addTo(this.map!)
           .bindPopup(`<b>${title}</b><br>${city}`)
           .on('click', () => this.goToDetail(k.Id));
-        
+
         this.markers.push(marker);
       }
     });
