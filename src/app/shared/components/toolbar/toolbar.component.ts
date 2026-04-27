@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,6 +8,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { SharedSearchBarComponent } from '../search-bar/search-bar.component';
 import { AuthDialogComponent } from '../../../features/auth/auth-dialog.component';
 import { AuthService } from '../../../core/services/auth.service';
+import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-toolbar',
@@ -27,7 +28,10 @@ import { AuthService } from '../../../core/services/auth.service';
       </div>
 
       <div class="toolbar-center">
-        <app-search-bar (search)="onSearch($event)"></app-search-bar>
+        <app-search-bar
+          [allOptions]="kellereiNamen"
+          (search)="onSearch($event)">
+        </app-search-bar>
       </div>
 
       <div class="toolbar-right">
@@ -85,15 +89,30 @@ import { AuthService } from '../../../core/services/auth.service';
     }
     @media (max-width: 768px) {
       .toolbar-center {
-        display: none; /* In a real app, we'd show a search icon that expands */
+        display: none;
       }
     }
   `]
 })
-export class SharedToolbarComponent {
+export class SharedToolbarComponent implements OnInit {
   authService = inject(AuthService);
   private dialog = inject(MatDialog);
   private router = inject(Router);
+  private apiService = inject(ApiService);
+
+  kellereiNamen: string[] = [];
+
+  ngOnInit() {
+    // Wir fordern 200 Einträge an, damit wir möglichst alle im Dropdown haben
+    this.apiService.getKellereien(1, 200).subscribe({
+      next: (response: any) => {
+        // Zieht die Liste aus der PaginatedResponse und filtert die Namen heraus
+        const kellereien = response.Items || response.items || [];
+        this.kellereiNamen = kellereien.map((k: any) => k.ShortName || k.name || k.Detail?.de?.Title);
+      },
+      error: (err) => console.error('Fehler beim Laden der Kellereien für die Suche', err)
+    });
+  }
 
   openAuthDialog() {
     this.dialog.open(AuthDialogComponent, {
