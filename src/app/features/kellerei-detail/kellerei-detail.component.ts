@@ -20,9 +20,6 @@ import { SharedBackButtonComponent } from '../../shared/components/back-button/b
 import { LanguagePipe } from '../../shared/pipes/language.pipe';
 import * as L from 'leaflet';
 
-// Fix Leaflet default icon paths completely
-L.Icon.Default.imagePath = 'assets/';
-
 @Component({
   selector: 'app-kellerei-detail',
   standalone: true,
@@ -277,7 +274,7 @@ export default class KellereiDetailComponent implements OnInit {
       next: (data) => {
         this.kellerei.set(data);
         this.isLoading.set(false);
-        setTimeout(() => this.initMap(), 100); // Wait for DOM
+        setTimeout(() => this.initMap(), 100);
       },
       error: (err) => {
         console.error('Error loading kellerei', err);
@@ -310,7 +307,31 @@ export default class KellereiDetailComponent implements OnInit {
       attribution: '© OpenStreetMap contributors'
     }).addTo(this.map);
 
-    L.marker([lat, lng]).addTo(this.map);
+    // NEU: Wein-Icon wie auf der Hauptkarte
+    const wineIcon = L.divIcon({
+      html: `
+        <div style="
+          background-color: #7B1E1E;
+          color: white;
+          border-radius: 50%;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          border: 2px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        ">
+          🍷
+        </div>
+      `,
+      className: '',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+
+    L.marker([lat, lng], { icon: wineIcon }).addTo(this.map);
   }
 
   setRating(rating: number) {
@@ -325,7 +346,7 @@ export default class KellereiDetailComponent implements OnInit {
       if (user && k) {
         this.reviewService.addReview({
           kellereiId: k.Id,
-          userId: user.username, // Mock user ID
+          userId: user.username,
           username: user.username,
           stars: this.selectedRating(),
           comment: this.reviewForm.value.comment

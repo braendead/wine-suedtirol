@@ -169,9 +169,43 @@ export default class HomeComponent implements OnInit, AfterViewInit {
       next: (pos) => {
         this.map?.setView([pos.coords.latitude, pos.coords.longitude], 12);
 
-        L.marker([pos.coords.latitude, pos.coords.longitude])
+        // NEU: Ein Custom-Icon für deinen aktuellen Standort (Blauer Punkt)
+        const userIcon = L.divIcon({
+          html: `
+            <div style="
+              background-color: #2196F3;
+              border-radius: 50%;
+              width: 20px;
+              height: 20px;
+              border: 3px solid white;
+              box-shadow: 0 0 10px rgba(33, 150, 243, 0.8);
+              position: relative;
+            ">
+              <div style="
+                content: '';
+                position: absolute;
+                top: -3px; left: -3px; right: -3px; bottom: -3px;
+                border-radius: 50%;
+                border: 2px solid #2196F3;
+                animation: map-pulse 2s infinite;
+              "></div>
+            </div>
+            <style>
+              @keyframes map-pulse {
+                0% { transform: scale(1); opacity: 1; }
+                100% { transform: scale(2); opacity: 0; }
+              }
+            </style>
+          `,
+          className: '',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+
+        // Marker mit neuem Icon setzen
+        L.marker([pos.coords.latitude, pos.coords.longitude], { icon: userIcon })
           .addTo(this.map!)
-          .bindPopup('Ihr Standort');
+          .bindPopup('<b>Dein aktueller Standort</b>');
       }
     });
   }
