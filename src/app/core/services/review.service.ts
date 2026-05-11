@@ -1,45 +1,42 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
 export interface Review {
-  id: string;
+  id?: string; // id wird vom JSON-Server generiert
   kellereiId: string;
   userId: string;
   username: string;
   stars: number;
   comment: string;
   date: string;
+  kellereiName?: string;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class ReviewService {
-  private readonly STORAGE_KEY = 'wine_reviews';
+  private http = inject(HttpClient);
+  private readonly API_URL = 'http://localhost:3000/reviews';
 
-  constructor() {}
-
-  private getAllReviews(): Review[] {
-    const data = localStorage.getItem(this.STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+  getReviewsForKellerei(kellereiId: string): Observable<Review[]> {
+    return this.http.get<Review[]>(`${this.API_URL}?kellereiId=${kellereiId}`);
   }
 
-  getReviewsForKellerei(kellereiId: string): Review[] {
-    return this.getAllReviews().filter(r => r.kellereiId === kellereiId);
+  getReviewsByUser(username: string): Observable<Review[]> {
+    return this.http.get<Review[]>(`${this.API_URL}?username=${username}`);
   }
 
-  addReview(review: Omit<Review, 'id' | 'date'>): void {
-    const reviews = this.getAllReviews();
-    const newReview: Review = {
+  addReview(review: Omit<Review, 'id' | 'date'>): Observable<Review> {
+    const newReview = {
       ...review,
-      id: Math.random().toString(36).substring(2, 9),
       date: new Date().toISOString()
     };
-    reviews.push(newReview);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(reviews));
+    return this.http.post<Review>(this.API_URL, newReview);
   }
 
-  deleteReview(id: string): void {
-    const reviews = this.getAllReviews().filter(r => r.id !== id);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(reviews));
+  deleteReview(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.API_URL}/${id}`);
   }
 }

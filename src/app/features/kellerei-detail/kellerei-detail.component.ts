@@ -24,28 +24,17 @@ import * as L from 'leaflet';
   selector: 'app-kellerei-detail',
   standalone: true,
   imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatCardModule,
-    MatChipsModule,
-    MatDividerModule,
-    MatIconModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-    SharedBackButtonComponent,
-    LanguagePipe
+    CommonModule, ReactiveFormsModule, MatCardModule, MatChipsModule,
+    MatDividerModule, MatIconModule, MatButtonModule, MatFormFieldModule,
+    MatInputModule, MatProgressSpinnerModule, MatSnackBarModule,
+    SharedBackButtonComponent, LanguagePipe
   ],
   template: `
     <div class="detail-container">
       <app-back-button></app-back-button>
 
       @if (isLoading()) {
-        <div class="loading-container">
-          <mat-spinner></mat-spinner>
-        </div>
+        <div class="loading-container"><mat-spinner></mat-spinner></div>
       } @else if (kellerei()) {
         <mat-card class="kellerei-card">
           <mat-card-header>
@@ -63,23 +52,15 @@ import * as L from 'leaflet';
             <div class="info-section">
               <h3>Kontakt</h3>
               <p><mat-icon>location_on</mat-icon> {{ getContactInfo()?.Address }}, {{ getContactInfo()?.ZipCode }} {{ getContactInfo()?.City }}</p>
-              @if (getContactInfo()?.Phonenumber) {
-                <p><mat-icon>phone</mat-icon> {{ getContactInfo()?.Phonenumber }}</p>
-              }
-              @if (getContactInfo()?.Email) {
-                <p><mat-icon>email</mat-icon> <a href="mailto:{{ getContactInfo()?.Email }}">{{ getContactInfo()?.Email }}</a></p>
-              }
-              @if (getContactInfo()?.Url) {
-                <p><mat-icon>language</mat-icon> <a [href]="getContactInfo()?.Url" target="_blank">{{ getContactInfo()?.Url }}</a></p>
-              }
+              @if (getContactInfo()?.Phonenumber) { <p><mat-icon>phone</mat-icon> {{ getContactInfo()?.Phonenumber }}</p> }
+              @if (getContactInfo()?.Email) { <p><mat-icon>email</mat-icon> <a href="mailto:{{ getContactInfo()?.Email }}">{{ getContactInfo()?.Email }}</a></p> }
+              @if (getContactInfo()?.Url) { <p><mat-icon>language</mat-icon> <a [href]="getContactInfo()?.Url" target="_blank">{{ getContactInfo()?.Url }}</a></p> }
             </div>
 
             @if (kellerei()?.Tags?.length) {
               <div class="tags-section">
                 <mat-chip-set>
-                  @for (tag of kellerei()?.Tags; track tag.Id) {
-                    <mat-chip>{{ tag.Id }}</mat-chip>
-                  }
+                  @for (tag of kellerei()?.Tags; track tag.Id) { <mat-chip>{{ tag.Id }}</mat-chip> }
                 </mat-chip-set>
               </div>
             }
@@ -95,7 +76,6 @@ import * as L from 'leaflet';
 
             <div class="reviews-section">
               <h3>Bewertungen</h3>
-
               @if (reviews().length === 0) {
                 <p>Noch keine Bewertungen vorhanden.</p>
               } @else {
@@ -104,18 +84,24 @@ import * as L from 'leaflet';
                     <mat-card class="review-item">
                       <mat-card-header>
                         <mat-card-title class="review-title">
-                          {{ review.username }}
-                          <span class="stars">
-                            @for (star of [1,2,3,4,5]; track star) {
-                              <mat-icon [class.active]="star <= review.stars">star</mat-icon>
-                            }
+                          <span>
+                            {{ review.username }}
+                            <span class="stars">
+                              @for (star of [1,2,3,4,5]; track star) {
+                                <mat-icon [class.active]="star <= review.stars">star</mat-icon>
+                              }
+                            </span>
                           </span>
+                          <!-- NEU: Löschen Button, wenn es der eigene Kommentar ist -->
+                          @if (authService.currentUser()?.username === review.username) {
+                            <button mat-icon-button color="warn" (click)="deleteReview(review.id!)">
+                              <mat-icon>delete</mat-icon>
+                            </button>
+                          }
                         </mat-card-title>
                         <mat-card-subtitle>{{ review.date | date }}</mat-card-subtitle>
                       </mat-card-header>
-                      <mat-card-content>
-                        <p>{{ review.comment }}</p>
-                      </mat-card-content>
+                      <mat-card-content><p>{{ review.comment }}</p></mat-card-content>
                     </mat-card>
                   }
                 </div>
@@ -127,22 +113,14 @@ import * as L from 'leaflet';
                   <form [formGroup]="reviewForm" (ngSubmit)="submitReview()">
                     <div class="star-rating">
                       @for (star of [1,2,3,4,5]; track star) {
-                        <mat-icon
-                          (click)="setRating(star)"
-                          [class.active]="star <= selectedRating()">
-                          star
-                        </mat-icon>
+                        <mat-icon (click)="setRating(star)" [class.active]="star <= selectedRating()">star</mat-icon>
                       }
                     </div>
-
                     <mat-form-field appearance="outline" class="full-width">
                       <mat-label>Kommentar</mat-label>
                       <textarea matInput formControlName="comment" rows="3"></textarea>
-                      @if (reviewForm.get('comment')?.hasError('minlength')) {
-                        <mat-error>Mindestens 10 Zeichen erforderlich</mat-error>
-                      }
+                      @if (reviewForm.get('comment')?.hasError('minlength')) { <mat-error>Mindestens 10 Zeichen</mat-error> }
                     </mat-form-field>
-
                     <button mat-raised-button color="primary" type="submit" [disabled]="reviewForm.invalid || selectedRating() === 0">
                       Bewertung speichern
                     </button>
@@ -158,88 +136,26 @@ import * as L from 'leaflet';
     </div>
   `,
   styles: [`
-    .detail-container {
-      padding: 2rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .loading-container {
-      display: flex;
-      justify-content: center;
-      padding: 4rem;
-    }
-    .kellerei-card {
-      margin-top: 1rem;
-    }
-    .image-gallery {
-      width: 100%;
-      height: 300px;
-      overflow: hidden;
-      margin-bottom: 1rem;
-    }
-    .main-image {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .info-section p {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .tags-section {
-      margin: 1rem 0;
-    }
-    .map-section {
-      margin: 1.5rem 0;
-    }
-    .mini-map {
-      height: 250px;
-      width: 100%;
-      border-radius: 4px;
-    }
-    .reviews-section {
-      margin-top: 1.5rem;
-    }
-    .review-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-    .review-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      width: 100%;
-    }
-    .stars mat-icon {
-      color: #ccc;
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-    .stars mat-icon.active {
-      color: #ffd700;
-    }
-    .star-rating {
-      margin-bottom: 1rem;
-      cursor: pointer;
-    }
-    .star-rating mat-icon {
-      color: #ccc;
-    }
-    .star-rating mat-icon.active {
-      color: #ffd700;
-    }
-    .full-width {
-      width: 100%;
-    }
-    .login-prompt {
-      font-style: italic;
-      color: #666;
-    }
+    .detail-container { padding: 2rem; max-width: 800px; margin: 0 auto; }
+    .loading-container { display: flex; justify-content: center; padding: 4rem; }
+    .kellerei-card { margin-top: 1rem; }
+    .image-gallery { width: 100%; height: 300px; overflow: hidden; margin-bottom: 1rem; }
+    .main-image { width: 100%; height: 100%; object-fit: cover; }
+    .info-section p { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .tags-section { margin: 1rem 0; }
+    .map-section { margin: 1.5rem 0; }
+    .mini-map { height: 250px; width: 100%; border-radius: 4px; }
+    .reviews-section { margin-top: 1.5rem; }
+    .review-list { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
+    .review-title { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+    .review-title span { display: flex; align-items: center; gap: 10px; }
+    .stars mat-icon { color: #ccc; font-size: 18px; width: 18px; height: 18px; }
+    .stars mat-icon.active { color: #ffd700; }
+    .star-rating { margin-bottom: 1rem; cursor: pointer; }
+    .star-rating mat-icon { color: #ccc; }
+    .star-rating mat-icon.active { color: #ffd700; }
+    .full-width { width: 100%; }
+    .login-prompt { font-style: italic; color: #666; }
   `]
 })
 export default class KellereiDetailComponent implements OnInit {
@@ -277,15 +193,26 @@ export default class KellereiDetailComponent implements OnInit {
         setTimeout(() => this.initMap(), 100);
       },
       error: (err) => {
-        console.error('Error loading kellerei', err);
+        console.error('Error', err);
         this.isLoading.set(false);
-        this.snackBar.open('Fehler beim Laden der Kellerei', 'Schließen', { duration: 3000 });
       }
     });
   }
 
   loadReviews(id: string) {
-    this.reviews.set(this.reviewService.getReviewsForKellerei(id));
+    this.reviewService.getReviewsForKellerei(id).subscribe(data => {
+      this.reviews.set(data);
+    });
+  }
+
+  deleteReview(reviewId: string) {
+    if (confirm('Möchtest du diese Bewertung wirklich löschen?')) {
+      this.reviewService.deleteReview(reviewId).subscribe(() => {
+        const k = this.kellerei();
+        if (k) this.loadReviews(k.Id);
+        this.snackBar.open('Bewertung gelöscht', 'Schließen', { duration: 3000 });
+      });
+    }
   }
 
   getContactInfo() {
@@ -307,28 +234,13 @@ export default class KellereiDetailComponent implements OnInit {
       attribution: '© OpenStreetMap contributors'
     }).addTo(this.map);
 
-    // NEU: Wein-Icon wie auf der Hauptkarte
     const wineIcon = L.divIcon({
       html: `
-        <div style="
-          background-color: #7B1E1E;
-          color: white;
-          border-radius: 50%;
-          width: 28px;
-          height: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          border: 2px solid white;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        ">
+        <div style="background-color: #7B1E1E; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
           🍷
         </div>
       `,
-      className: '',
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
+      className: '', iconSize: [28, 28], iconAnchor: [14, 14]
     });
 
     L.marker([lat, lng], { icon: wineIcon }).addTo(this.map);
@@ -350,12 +262,12 @@ export default class KellereiDetailComponent implements OnInit {
           username: user.username,
           stars: this.selectedRating(),
           comment: this.reviewForm.value.comment
+        }).subscribe(() => {
+          this.snackBar.open('Bewertung erfolgreich gespeichert', 'Schließen', { duration: 3000 });
+          this.reviewForm.reset();
+          this.selectedRating.set(0);
+          this.loadReviews(k.Id);
         });
-
-        this.snackBar.open('Bewertung erfolgreich gespeichert', 'Schließen', { duration: 3000 });
-        this.reviewForm.reset();
-        this.selectedRating.set(0);
-        this.loadReviews(k.Id);
       }
     }
   }

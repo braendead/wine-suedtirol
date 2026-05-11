@@ -38,9 +38,9 @@ $wine-suedtirol-theme: mat.define-theme((
 @import "leaflet/dist/leaflet.css";
 
 html, body { height: 100%; }
-body { 
-  margin: 0; 
-  font-family: Roboto, "Helvetica Neue", sans-serif; 
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
   background-color: #fdfbf7; /* Warmes Hellbeige */
 }
 
@@ -54,3 +54,6 @@ body {
   --mat-toolbar-container-background-color: #8B1A1A;
   --mat-toolbar-container-text-color: #ffffff;
 }
+
+@import "../node_modules/leaflet.markercluster/dist/MarkerCluster.css";
+@import "../node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css";

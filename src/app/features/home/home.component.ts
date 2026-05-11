@@ -9,6 +9,7 @@ import { GeolocationService } from '../../core/services/geolocation.service';
 import { Kellerei } from '../../core/models/kellerei.model';
 import { LanguagePipe } from '../../shared/pipes/language.pipe';
 import * as L from 'leaflet';
+import 'leaflet.markercluster';
 
 @Component({
   selector: 'app-home',
@@ -47,29 +48,11 @@ import * as L from 'leaflet';
     </div>
   `,
   styles: [`
-    .home-container {
-      display: flex;
-      height: calc(100vh - 64px);
-    }
-    .sidebar {
-      width: 30%;
-      min-width: 300px;
-      overflow-y: auto;
-      border-right: 1px solid #e0e0e0;
-    }
-    .map-container {
-      flex: 1;
-      height: 100%;
-    }
-    .map {
-      width: 100%;
-      height: 100%;
-    }
-    .loading-container {
-      display: flex;
-      justify-content: center;
-      padding: 2rem;
-    }
+    .home-container { display: flex; height: calc(100vh - 64px); }
+    .sidebar { width: 30%; min-width: 300px; overflow-y: auto; border-right: 1px solid #e0e0e0; }
+    .map-container { flex: 1; height: 100%; }
+    .map { width: 100%; height: 100%; }
+    .loading-container { display: flex; justify-content: center; padding: 2rem; }
   `]
 })
 export default class HomeComponent implements OnInit, AfterViewInit {
@@ -85,9 +68,7 @@ export default class HomeComponent implements OnInit, AfterViewInit {
   filteredKellereien = computed(() => {
     const term = this.searchTerm().toLowerCase();
     const all = this.kellereien();
-
     if (!term) return all;
-
     return all.filter(k => {
       const titleDe = k.Detail?.de?.Title?.toLowerCase() || '';
       const titleIt = k.Detail?.it?.Title?.toLowerCase() || '';
@@ -96,7 +77,7 @@ export default class HomeComponent implements OnInit, AfterViewInit {
   });
 
   private map: L.Map | undefined;
-  private markers: L.Marker[] = [];
+  private markerClusterGroup: L.MarkerClusterGroup | null = null;
 
   constructor() {
     effect(() => {
@@ -108,7 +89,6 @@ export default class HomeComponent implements OnInit, AfterViewInit {
 
   ngOnInit() {
     this.loadAllKellereien();
-
     this.route.queryParams.subscribe(params => {
       this.searchTerm.set(params['search'] || '');
     });
@@ -120,16 +100,13 @@ export default class HomeComponent implements OnInit, AfterViewInit {
 
   loadAllKellereien() {
     this.isLoading.set(true);
-
-    const pageSize = 100;
     let currentPage = 1;
     let all: Kellerei[] = [];
 
     const loadPage = () => {
-      this.apiService.getKellereien(currentPage, pageSize).subscribe({
+      this.apiService.getKellereien(currentPage, 100).subscribe({
         next: (res) => {
           all = all.concat(res.Items || []);
-
           if (currentPage < res.TotalPages) {
             currentPage++;
             loadPage();
@@ -144,7 +121,6 @@ export default class HomeComponent implements OnInit, AfterViewInit {
         }
       });
     };
-
     loadPage();
   }
 
@@ -161,48 +137,21 @@ export default class HomeComponent implements OnInit, AfterViewInit {
       attribution: '© OpenStreetMap contributors'
     }).addTo(this.map);
 
-    setTimeout(() => {
-      this.map?.invalidateSize();
-    }, 100);
+    setTimeout(() => this.map?.invalidateSize(), 100);
 
     this.geoService.getCurrentPosition().subscribe({
       next: (pos) => {
         this.map?.setView([pos.coords.latitude, pos.coords.longitude], 12);
-
-        // NEU: Ein Custom-Icon für deinen aktuellen Standort (Blauer Punkt)
         const userIcon = L.divIcon({
           html: `
-            <div style="
-              background-color: #2196F3;
-              border-radius: 50%;
-              width: 20px;
-              height: 20px;
-              border: 3px solid white;
-              box-shadow: 0 0 10px rgba(33, 150, 243, 0.8);
-              position: relative;
-            ">
-              <div style="
-                content: '';
-                position: absolute;
-                top: -3px; left: -3px; right: -3px; bottom: -3px;
-                border-radius: 50%;
-                border: 2px solid #2196F3;
-                animation: map-pulse 2s infinite;
-              "></div>
+            <div style="background-color: #2196F3; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 10px rgba(33, 150, 243, 0.8); position: relative;">
+              <div style="position: absolute; top: -3px; left: -3px; right: -3px; bottom: -3px; border-radius: 50%; border: 2px solid #2196F3; animation: map-pulse 2s infinite;"></div>
             </div>
-            <style>
-              @keyframes map-pulse {
-                0% { transform: scale(1); opacity: 1; }
-                100% { transform: scale(2); opacity: 0; }
-              }
-            </style>
+            <style>@keyframes map-pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }</style>
           `,
-          className: '',
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
+          className: '', iconSize: [20, 20], iconAnchor: [10, 10]
         });
 
-        // Marker mit neuem Icon setzen
         L.marker([pos.coords.latitude, pos.coords.longitude], { icon: userIcon })
           .addTo(this.map!)
           .bindPopup('<b>Dein aktueller Standort</b>');
@@ -213,62 +162,52 @@ export default class HomeComponent implements OnInit, AfterViewInit {
   private updateMapMarkers(kellereien: Kellerei[]) {
     if (!this.map) return;
 
-    this.markers.forEach(m => m.remove());
-    this.markers = [];
+    if (this.markerClusterGroup) {
+      this.map.removeLayer(this.markerClusterGroup);
+    }
 
-    // 🍷 Wein-Marker
+    this.markerClusterGroup = L.markerClusterGroup({
+      iconCreateFunction: (cluster) => {
+        const count = cluster.getChildCount();
+        return L.divIcon({
+          html: `
+            <div style="background-color: #7B1E1E; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+              ${count}
+            </div>
+          `,
+          className: 'custom-cluster-icon',
+          iconSize: [40, 40]
+        });
+      }
+    });
+
     const wineIcon = L.divIcon({
       html: `
-        <div style="
-          background-color: #7B1E1E;
-          color: white;
-          border-radius: 50%;
-          width: 28px;
-          height: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          border: 2px solid white;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        ">
+        <div style="background-color: #7B1E1E; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
           🍷
         </div>
       `,
-      className: '',
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
+      className: '', iconSize: [28, 28], iconAnchor: [14, 14]
     });
 
     kellereien.forEach(k => {
       const gps = k.GpsInfo?.[0];
       if (!gps?.Latitude || !gps?.Longitude) return;
 
-      const lat = gps.Latitude;
-      const lng = gps.Longitude;
+      const title = k.Detail?.de?.Title || k.Detail?.it?.Title || 'Unbekannt';
+      const city = k.ContactInfos?.de?.City || k.ContactInfos?.it?.City || '';
 
-      const title =
-        k.Detail?.de?.Title ||
-        k.Detail?.it?.Title ||
-        'Unbekannt';
-
-      const city =
-        k.ContactInfos?.de?.City ||
-        k.ContactInfos?.it?.City ||
-        '';
-
-      const marker = L.marker([lat, lng], { icon: wineIcon })
-        .addTo(this.map!)
+      const marker = L.marker([gps.Latitude, gps.Longitude], { icon: wineIcon })
         .bindPopup(`<b>${title}</b><br>${city}`)
         .on('click', () => this.goToDetail(k.Id));
 
-      this.markers.push(marker);
+      this.markerClusterGroup!.addLayer(marker);
     });
 
-    if (this.markers.length > 0) {
-      const bounds = L.latLngBounds(
-        this.markers.map(m => m.getLatLng())
-      );
+    this.map.addLayer(this.markerClusterGroup);
+
+    if (kellereien.length > 0) {
+      const bounds = this.markerClusterGroup.getBounds();
       this.map.fitBounds(bounds, { padding: [50, 50] });
     }
   }
