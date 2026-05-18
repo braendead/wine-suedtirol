@@ -66,24 +66,19 @@ import { LanguagePipe } from '../../shared/pipes/language.pipe';
             <td mat-cell *matCellDef="let row"> {{row.Detail | language}} </td>
           </ng-container>
 
-          <!-- Image Column -->
+          <!-- ENTFERNT: Image Column
           <ng-container matColumnDef="Image">
-            <th mat-header-cell *matHeaderCellDef> Bild </th>
-            <td mat-cell *matCellDef="let row">
-              @if (row.ImageGallery?.length) {
-                <img [src]="row.ImageGallery[0].ImageUrl" alt="Wine Image" class="thumbnail">
-              } @else {
-                <span class="no-image">-</span>
-              }
-            </td>
+            ...
           </ng-container>
+          -->
 
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
 
           <!-- Row shown when there is no matching data. -->
           <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="4">
+            <!-- colspan von 4 auf 3 geändert -->
+            <td class="mat-cell" colspan="3">
               @if (isLoading()) {
                 Lade Daten...
               } @else if (input.value) {
@@ -133,31 +128,19 @@ import { LanguagePipe } from '../../shared/pipes/language.pipe';
       align-items: center;
       justify-content: center;
     }
-    .thumbnail {
-      width: 40px;
-      height: 40px;
-      object-fit: cover;
-      border-radius: 4px;
-    }
-    .no-image {
-      color: #999;
-    }
+    /* CSS für .thumbnail und .no-image ist nicht mehr nötig */
     table {
       width: 100%;
     }
-    @media (max-width: 768px) {
-      /* Hide some columns on mobile */
-      .mat-column-Image {
-        display: none;
-      }
-    }
+    /* CSS für das Ausblenden der Spalte ist nicht mehr nötig */
   `]
 })
 export default class WineAwardsComponent implements OnInit {
   private apiService = inject(ApiService);
   private cdr = inject(ChangeDetectorRef);
 
-  displayedColumns: string[] = ['Year', 'Awardname', 'Wine', 'Image'];
+  // 'Image' aus dem Array entfernt
+  displayedColumns: string[] = ['Year', 'Awardname', 'Wine'];
   dataSource = new MatTableDataSource<WineAward>();
   isLoading = signal<boolean>(true);
 
